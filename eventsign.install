@@ -1,0 +1,149 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the eventsign module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function eventsign_schema() {
+  $schema['eventsign'] = array(
+    'description' => 'Stores eventsign items.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique eventsign item ID.',
+      ),
+      'type' => array(
+        'description' => 'The {eventsign_type}.type of this eventsign.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'label' => array(
+        'description' => 'The label of the eventsign.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'begindate' => array(
+        'description' => 'begin Date.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'enddate' => array(
+        'description' => 'End Date.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'langcode' => array(
+        'description' => 'The {language}.langcode of the eventsign.',
+        'type' => 'varchar',
+        'length' => 12,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'uid' => array(
+        'description' => 'The {users}.uid that owns this node; initially, this is the user that created it.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the eventsign was created.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'changed' => array(
+        'description' => 'The Unix timestamp when the eventsign was changed.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'status' => array(
+        'description' => 'Whether the eventsign is active (1) or not (0).',
+        'type' => 'int',
+        'default' => 0,
+        'size' => 'tiny',
+        'not null' => FALSE,
+      ),
+    ),
+    'indexes' => array(
+      'type' => array('type'),
+      'changed' => array('changed'),
+      'created' => array('created'),
+      'uid' => array('uid'),
+    ),
+    'foreign keys' => array(
+      'type' => array(
+        'table' => 'eventsign_type',
+        'columns' => array('type' => 'type'),
+      ),
+      'owner' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+
+  $schema['eventsign_type'] = array(
+    'description' => 'Stores information about all defined eventsign types.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique eventsign type ID.',
+      ),
+      'name' => array(
+        'description' => 'The machine-readable name of this eventsign type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this eventsign type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'weight' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'tiny',
+        'description' => 'The weight of this eventsign type in relation to others.',
+      ),
+      'data' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+        'size' => 'big',
+        'serialize' => TRUE,
+        'description' => 'A serialized array of additional data related to this eventsign type.',
+      ),
+      'status' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0x01,
+        'size' => 'tiny',
+        'description' => 'The exportable status of the entity.',
+      ),
+      'module' => array(
+        'description' => 'The name of the providing module if the entity has been defined in code.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'name' => array('name'),
+    ),
+  );
+  return $schema;
+}

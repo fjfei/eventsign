@@ -1,0 +1,22 @@
+name = Eventsign
+description = Event Sign-in
+package = Event
+core = 7.x
+
+;configure = admin/eventsign
+
+dependencies[] = entity
+;dependencies[] = date
+dependencies[] = views
+
+; EventsignTypeUIController
+files[] = eventsign.admin.inc   
+; EventsignController   Eventsign  EventsignType
+files[] = eventsign.entity.inc 
+; EventsignMetadataController
+files[] = eventsign.metadata.inc
+; EventsignUIController
+files[] = eventsign.pages.inc
+
+
+version = "7.x-1.0"

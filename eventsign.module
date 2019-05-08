@@ -1,0 +1,266 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for eventsign module.
+ */
+
+/**
+ * Gets the string to use for the given key.
+ */
+function eventsign_get_string($key) {
+  $static = &drupal_static(__FUNCTION__);
+
+  if (!isset($static)) {
+    $static = variable_get('eventsign_strings', array()) + array(
+      'entity label' => t('Eventsign entity'),
+      'entity plural label' => t('Eventsign entities'),
+      'entity description' => 'Eventsign entities.',
+      'type label' => t('Eventsign type'),
+      'type plural label' => t('Eventsign types'),
+      'type description' => 'Types of eventsign entities.',
+      'base path' => 'eventsign',
+      'admin menu path' => 'admin/structure/eventsign',
+      'admin menu description' => 'Manage eventsign types, including fields.',
+      'admin menu path content' => 'admin/content/eventsign',
+    );
+  }
+  return isset($static[$key]) ? $static[$key] : '';
+}
+
+/**
+ * Implements hook_menu().
+ */
+function eventsign_menu() {
+  $items['admin/eventsign'] = array(
+    'title' => t('Event Sign'),
+    'description' => t('Administer  eventsign items, such as types, states, etc.'),
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('administer eventsign page'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+
+  $items['admin/eventsign/events'] = array(
+    'title' => t('Events'),
+    'description' => t('Event list.'),
+    'page callback' => 'eventsign_main_page',
+    'page arguments' => array('eventsign_settings_form'),
+    'access arguments' => array('administer eventsign page'),
+    'file' => 'eventsign.admin.inc',
+  ); 
+  return $items;
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function eventsign_entity_info() {
+  $return = array(
+    'eventsign' => array(
+      'label' => eventsign_get_string('entity label'),
+      'plural label' => eventsign_get_string('entity plural label'),
+      'description' => eventsign_get_string('entity description'),
+      'entity class' => 'EventsignEntity',
+      'controller class' => 'EventsignController',
+      'base table' => 'eventsign',
+      'fieldable' => TRUE,
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Full page'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'entity keys' => array(
+        'id' => 'id',
+        'bundle' => 'type',
+        'label' => 'label',
+        'begindate' => 'begindate',
+        'enddate' => 'enddate',
+      ),
+      'bundles' => array(),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'access callback' => 'eventsign_access',
+      'module' => 'eventsign',
+      'metadata controller class' => 'EventsignMetadataController',
+      // Enable the entity API's admin UI.
+      'admin ui' => array(
+        'path' => eventsign_get_string('base path'),
+        'file' => 'eventsign.pages.inc',
+        'controller class' => 'EventsignUIController',
+      ),
+    ),
+  );
+
+  // Add bundle info but bypass entity_load() as we cannot use it here.
+  $types = db_select('eventsign_type', 't')
+    ->fields('t')
+    ->execute()
+    ->fetchAllAssoc('name');
+
+  foreach ($types as $type_name => $info) {
+    $return['eventsign']['bundles'][$type_name] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => eventsign_get_string('admin menu path') . '/manage/%eventsign_type',
+        'real path' => eventsign_get_string('admin menu path') . '/manage/' . $type_name,
+        'bundle argument' => 4,
+        'access arguments' => array('administer eventsign types'),
+      ),
+    );
+  }
+
+  // Support entity cache module.
+  if (module_exists('entitycache')) {
+    $return['eventsign']['field cache'] = FALSE;
+    $return['eventsign']['entity cache'] = TRUE;
+  }
+
+  $return['eventsign_type'] = array(
+    'label' => eventsign_get_string('type label'),
+    'plural label' => eventsign_get_string('type plural label'),
+    'description' => eventsign_get_string('type description'),
+    'entity class' => 'eventsignType',
+    'controller class' => 'EntityAPIControllerExportable',
+    'base table' => 'eventsign_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'eventsign',
+    'exportable' => TRUE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'name',
+      'label' => 'label',
+    ),
+    'access callback' => 'eventsign_type_access',
+    'module' => 'eventsign',
+    // Enable the entity API's admin UI.
+    'admin ui' => array(
+      'path' => eventsign_get_string('admin menu path'),
+      'file' => 'eventsign.admin.inc',
+      'controller class' => 'EventsignTypeUIController',
+    ),
+  );
+  // Define how to get the bundle-name from a while type object.
+  $return['eventsign']['bundle keys']['bundle'] = 'name';
+
+  return $return;
+}
+
+/**
+ * Implements hook_entity_property_info_alter().
+ */
+function eventsign_entity_property_info_alter(&$info) {
+  $properties = &$info['eventsign']['properties'];
+  $properties['created'] = array(
+    'label' => t("Date created"),
+    'type' => 'date',
+    'description' => t("The date the node was posted."),
+    'setter callback' => 'entity_property_verbatim_set',
+    'setter permission' => 'administer nodes',
+    'schema field' => 'created',
+  );
+  $properties['uid'] = array(
+    'label' => t("Author"),
+    'type' => 'user',
+    'description' => t("The author of the task."),
+    'setter callback' => 'entity_property_verbatim_set',
+    'setter permission' => 'administer example_task entities',
+    'required' => TRUE,
+    'schema field' => 'uid',
+  );
+}
+
+/**
+ * Access callback for the entity API.
+ */
+function eventsign_access($op, $entity = NULL, $account = NULL) {
+  if (user_access('administer eventsigns', $account)) {
+    return TRUE;
+  }
+  $account = isset($account) ? $account : $GLOBALS['user'];
+
+  if (isset($entity) && user_access('view eventsigns', $account)) {
+    if ($entity->uid == $account->uid) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Access callback for the entity API.
+ */
+function eventsign_type_access($op, $entity = NULL, $account = NULL) {
+  return user_access('administer eventsign types', $account);
+}
+
+/**
+ * Implements hook_permission().
+ */
+function eventsign_permission() {
+  return array(
+    'administer eventsigns' => array(
+      'title' => t('Administer eventsign entities'),
+      'description' => t('Created and edit all eventsign entities.'),
+    ),
+    'administer eventsign types' => array(
+      'title' => t('Administer eventsign entity types'),
+      'description' => t('Create and delete eventsign entity types and their fields.'),
+    ),
+    'view eventsigns' => array(
+      'title' => t('View eventsign entities'),
+      'description' => t('View  eventsign entities.'),
+    ),
+    'edit any eventsigns' => array(
+      'title' => t('View any eventsign entities'),
+      'description' => t('View any eventsign entities.'),
+    ),
+    'edit own eventsigns' => array(
+      'title' => t('View own eventsign entities'),
+      'description' => t('View own eventsign entities.'),
+    ),
+  );
+}
+
+/**
+ * eventsign type loader.
+ *
+ * @return eventsignType
+ */
+function eventsign_type_load($type_name) {
+  return entity_load_single('eventsign_type', $type_name);
+}
+
+/**
+ * eventsign loader.
+ *
+ * @return eventsign
+ */
+function eventsign_load($id) {
+  return entity_load_single('eventsign', $id);
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function eventsign_views_api() {
+  return array("api" => 3);
+}
+
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function eventsign_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+  // Add action link to add whiles on the admin menu content page.
+  if ($root_path == eventsign_get_string('admin menu path content')) {
+    $item = menu_get_item(eventsign_get_string('base path') . '/add');
+    if ($item['access']) {
+      $data['actions']['output'][] = array(
+        '#theme' => 'menu_local_action',
+        '#link' => $item,
+      );
+    }
+  }
+}
